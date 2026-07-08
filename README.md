@@ -55,9 +55,30 @@ Default entities:
 | Energy Today | `sensor.sunny_island_webbox_energy_today` |
 | Device Status | `sensor.sunny_island_webbox_device_status` |
 
+## Parameter controls
+
+The **Parameter Controls** section lets you read and write Sunny Island SI6048UM settings through Home Assistant WebBox `number` and `select` entities:
+
+- Battery charge current limits, float voltage, protection SOC
+- Grid feed-in current limits
+- Power limits and charge power start
+- Manual grid start (select)
+- External current monitoring (read-only)
+
+Each writable parameter has a slider, numeric input, and **Apply** button. Changes are sent via `number.set_value` or `select.select_option` services.
+
+Edit `parameters` in `js/config.js` to add or remove controls. Entity IDs follow the WebBox integration naming:
+
+```
+number.si6048um_1260044036_si6048um_1260044036_<param>
+```
+
+**Note:** Parameter entities require the WebBox integration to be active in Home Assistant. If controls show "Unavailable", re-add the WebBox device integration.
+
 ## Features
 
 - Real-time WebSocket updates (no polling)
+- Writable SI6048 parameter controls with apply confirmation
 - SOC gauge with charge-level coloring
 - Animated energy flow diagram (solar · battery · grid · home)
 - Plant power sparkline trend

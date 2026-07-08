@@ -69,6 +69,19 @@ class HAClient {
     return Object.fromEntries(this.states);
   }
 
+  getState(entityId) {
+    return this.states.get(entityId) || null;
+  }
+
+  callService(domain, service, serviceData = {}, target = {}) {
+    return this._call('call_service', {
+      domain,
+      service,
+      service_data: serviceData,
+      target,
+    });
+  }
+
   _handleMessage(msg) {
     if (msg.type === 'auth_required') return;
 

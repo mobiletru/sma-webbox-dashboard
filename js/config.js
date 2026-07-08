@@ -48,5 +48,54 @@ const DASHBOARD_CONFIG = {
     consumption: 'Consumption',
     consumptionToday: 'Consumed Today',
     netConsumption: 'Net Consumption',
+    extCur: 'External Current',
+    totExtCur: 'Total External Current',
   },
+
+  // Writable SI6048UM parameters (WebBox integration number/select entities)
+  parameters: [
+    {
+      title: 'Battery Charging',
+      items: [
+        { key: 'batChrgCurMax', entity: 'number.si6048um_1260044036_si6048um_1260044036_batchrgcurmax', label: 'Charge Current Max', type: 'number' },
+        { key: 'invChrgCurMax', entity: 'number.si6048um_1260044036_si6048um_1260044036_invchrgcurmax', label: 'Inverter Charge Current Max', type: 'number' },
+        { key: 'chrgVtgFlo', entity: 'number.si6048um_1260044036_si6048um_1260044036_chrgvtgflo', label: 'Float Charge Voltage', type: 'number' },
+        { key: 'aptTmFul', entity: 'number.si6048um_1260044036_si6048um_1260044036_apttmful', label: 'Absorption Time Full', type: 'number' },
+        { key: 'batPro1Soc', entity: 'number.si6048um_1260044036_si6048um_1260044036_batpro1soc', label: 'Battery Protection SOC 1', type: 'number' },
+        { key: 'slfCsmpSocMin', entity: 'number.si6048um_1260044036_si6048um_1260044036_slfcsmpsocmin', label: 'Self-Consumption SOC Min', type: 'number' },
+      ],
+    },
+    {
+      title: 'Grid & Feed-in',
+      items: [
+        { key: 'fedInCurAt', entity: 'number.si6048um_1260044036_si6048um_1260044036_fedincurat', label: 'Feed-in Current (Absolute)', type: 'number' },
+        { key: 'fedInCurRt', entity: 'number.si6048um_1260044036_si6048um_1260044036_fedincurrt', label: 'Feed-in Current (Relative)', type: 'number' },
+        { key: 'gdCurNom', entity: 'number.si6048um_1260044036_si6048um_1260044036_gdcurnom', label: 'Grid Current Nominal', type: 'number' },
+        { key: 'gdManStr', entity: 'select.si6048um_1260044036_si6048um_1260044036_manual_grid_start', label: 'Manual Grid Start', type: 'select' },
+      ],
+    },
+    {
+      title: 'Power Limits',
+      items: [
+        { key: 'pLimit', entity: 'number.si6048um_1260044036_si6048um_1260044036_plimit', label: 'Power Limit', type: 'number' },
+        { key: 'chpPwrStr', entity: 'number.si6048um_1260044036_si6048um_1260044036_chppwrstr', label: 'Charge Power Start', type: 'number' },
+      ],
+    },
+    {
+      title: 'Monitoring',
+      readOnly: true,
+      items: [
+        { key: 'extCur', entity: 'sensor.si6048um_1260044036_si6048um_1260044036_ext_cur', label: 'External Current', type: 'readonly' },
+        { key: 'totExtCur', entity: 'sensor.si6048um_1260044036_si6048um_1260044036_tot_ext_cur', label: 'Total External Current', type: 'readonly' },
+      ],
+    },
+  ],
 };
+
+function getAllEntityIds() {
+  const ids = new Set(Object.values(DASHBOARD_CONFIG.entities));
+  for (const group of DASHBOARD_CONFIG.parameters || []) {
+    for (const item of group.items) ids.add(item.entity);
+  }
+  return [...ids];
+}

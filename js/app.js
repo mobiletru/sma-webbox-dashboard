@@ -20,7 +20,24 @@
     bindAuth();
     bindSettings();
     renderMetricPlaceholders();
+    renderParameterControls();
     tryConnect();
+  }
+
+  function renderParameterControls() {
+    const container = $('#controls-container');
+    if (!container) return;
+    ParameterControls.render(container, null, showToast);
+  }
+
+  function showToast(message, type = 'info') {
+    const toast = $('#toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.dataset.type = type;
+    toast.classList.add('show');
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => toast.classList.remove('show'), 3500);
   }
 
   function bindAuth() {
@@ -69,10 +86,11 @@
       token,
       onConnect: async () => {
         setConnectionStatus('connected');
-        const entityIds = Object.values(DASHBOARD_CONFIG.entities);
+        const entityIds = getAllEntityIds();
         try {
           await client.subscribeEntities(entityIds);
           updateAllFromStates();
+          ParameterControls.render($('#controls-container'), client, showToast);
         } catch (err) {
           setConnectionStatus('error', err.message);
         }
@@ -80,6 +98,7 @@
       onDisconnect: () => setConnectionStatus('disconnected'),
       onStateChange: (entityId, state) => {
         updateEntity(entityId, state);
+        ParameterControls.updateFromState(entityId, state);
         recordHistory();
       },
       onError: (msg) => {
@@ -122,6 +141,7 @@
     for (const state of Object.values(states)) {
       updateEntity(state.entity_id, state);
     }
+    ParameterControls.updateAll(states);
     recordHistory();
   }
 
