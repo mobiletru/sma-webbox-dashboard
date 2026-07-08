@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a1a1f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="SMA Webbox" />
+  <title>SMA Webbox Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="auth-overlay" class="auth-overlay hidden">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <svg viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
+          <circle cx="24" cy="24" r="22" fill="none" stroke="#ff7700" stroke-width="3"/>
+          <path d="M14 28 L24 14 L34 28" fill="none" stroke="#ff7700" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2>Connect to Home Assistant</h2>
+      <p>Enter a long-lived access token to stream live Sunny Island WebBox data.</p>
+      <input id="token-input" type="password" placeholder="eyJhbGciOiJIUzI1NiIs..." autocomplete="off" />
+      <button id="connect-btn" class="btn-primary">Connect</button>
+      <p class="auth-hint">Profile → Security → Long-Lived Access Tokens</p>
+    </div>
+  </div>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="32" height="32">
+            <rect width="32" height="32" rx="8" fill="#ff7700"/>
+            <path d="M8 20 L16 10 L24 20" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <h1 id="dashboard-title">SMA Webbox Dashboard</h1>
+          <p id="dashboard-subtitle" class="subtitle">Sunny Island SI6048UM</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span id="connection-status" class="connection-pill" data-status="disconnected">Offline</span>
+        <div class="settings-wrap">
+          <button id="settings-btn" class="icon-btn" aria-label="Settings">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+          </button>
+          <div id="settings-panel" class="settings-panel">
+            <button id="disconnect-btn" class="btn-ghost">Disconnect &amp; clear token</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <!-- Hero row -->
+      <section class="hero-grid">
+        <article class="card soc-card">
+          <div class="soc-gauge">
+            <svg viewBox="0 0 100 100" class="soc-ring">
+              <circle cx="50" cy="50" r="45" class="soc-track"/>
+              <circle id="soc-arc" cx="50" cy="50" r="45" class="soc-fill" style="stroke-dasharray: 283; stroke-dashoffset: 283"/>
+            </svg>
+            <div class="soc-center">
+              <span id="soc-label" class="soc-value">—</span>
+              <span id="soc-status" class="soc-status">Loading</span>
+            </div>
+          </div>
+          <div class="soc-meta">
+            <span class="card-label">Sunny Island SI6048</span>
+            <div class="status-row">
+              <span>Device</span>
+              <span id="device-status" data-status="deviceStatus" class="status-badge muted">—</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="card flow-card">
+          <h2 class="card-title">Energy Flow</h2>
+          <div class="flow-diagram">
+            <div class="flow-node" id="node-solar">
+              <div class="node-icon solar">☀</div>
+              <span class="node-label">Solar</span>
+              <span id="flow-solar" class="node-value">0 W</span>
+            </div>
+            <div class="flow-node center" id="node-home">
+              <div class="node-icon home">⌂</div>
+              <span class="node-label">Home</span>
+              <span id="flow-consumption" class="node-value">0 W</span>
+            </div>
+            <div class="flow-node" id="node-battery">
+              <div class="node-icon battery">🔋</div>
+              <span class="node-label">Battery</span>
+              <span id="flow-battery" class="node-value">0 W</span>
+            </div>
+            <div class="flow-node" id="node-grid">
+              <div class="node-icon grid">⚡</div>
+              <span class="node-label">Grid</span>
+              <span id="flow-grid" class="node-value">0 W</span>
+            </div>
+
+            <svg class="flow-arrows" viewBox="0 0 400 200" preserveAspectRatio="none">
+              <path id="arrow-solar-home" class="flow-arrow" d="M80,60 Q200,40 200,100"/>
+              <path id="arrow-battery-home" class="flow-arrow" d="M320,60 Q200,40 200,100"/>
+              <path id="arrow-grid-home" class="flow-arrow" d="M200,160 Q200,130 200,100"/>
+              <path id="arrow-solar-battery" class="flow-arrow secondary" d="M80,60 Q200,20 320,60"/>
+            </svg>
+          </div>
+          <div class="plant-power-bar">
+            <span>Plant Power</span>
+            <strong id="flow-plant">0 W</strong>
+          </div>
+        </article>
+
+        <article class="card spark-card">
+          <h2 class="card-title">Plant Power Trend</h2>
+          <canvas id="power-sparkline" width="400" height="120"></canvas>
+          <p class="spark-caption">Last ~10 minutes of plant power (W)</p>
+        </article>
+      </section>
+
+      <!-- Metrics -->
+      <section id="metrics-grid" class="metrics-grid"></section>
+
+      <!-- Parameter controls -->
+      <div id="controls-container"></div>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <footer class="footer">
+      <span>SMA Webbox Dashboard</span>
+      <span>·</span>
+      <span>Home Assistant live data</span>
+      <span>·</span>
+      <span id="year"></span>
+    </footer>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/ha-client.js"></script>
+  <script src="js/controls.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
