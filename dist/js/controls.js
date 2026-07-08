@@ -2,10 +2,12 @@
  * SMA Webbox Dashboard — parameter controls (number / select / readonly)
  */
 const ParameterControls = (function () {
-  const BAD_STATES = new Set(['unknown', 'unavailable', 'none', '']);
+  let client = null;
+  let onToast = null;
 
-  function render(container, client, onToast) {
-    if (!DASHBOARD_CONFIG.parameters?.length) return;
+  function render(container) {
+    if (!DASHBOARD_CONFIG.parameters?.length || !container) return;
+    if (container.dataset.rendered === 'true') return;
 
     container.innerHTML = `
       <section class="controls-section card">
@@ -18,7 +20,13 @@ const ParameterControls = (function () {
         </div>
       </section>`;
 
-    bindEvents(container, client, onToast);
+    bindEvents(container);
+    container.dataset.rendered = 'true';
+  }
+
+  function attach(haClient, toastFn) {
+    client = haClient;
+    onToast = toastFn;
   }
 
   function renderGroup(group) {
@@ -73,8 +81,8 @@ const ParameterControls = (function () {
       </div>`;
   }
 
-  function bindEvents(container, client, onToast) {
-    container.querySelectorAll('.control-item:not([data-type="readonly"])').forEach((item) => {
+  function bindEvents(container) {
+    container.querySelectorAll('.control-item:not(.readonly)').forEach((item) => {
       const type = item.dataset.type;
       const applyBtn = item.querySelector('[data-apply]');
       const input = item.querySelector('[data-input]');
@@ -95,9 +103,7 @@ const ParameterControls = (function () {
         input.addEventListener('change', () => markDirty(item));
       }
 
-      applyBtn?.addEventListener('click', async () => {
-        await applyChange(item, client, onToast);
-      });
+      applyBtn?.addEventListener('click', () => applyChange(item));
     });
   }
 
@@ -107,7 +113,23 @@ const ParameterControls = (function () {
     if (status) status.textContent = 'Unsaved';
   }
 
-  async function applyChange(item, client, onToast) {
+  function setSelectOptions(select, options, current) {
+    select.replaceChildren();
+    for (const option of options) {
+      const el = document.createElement('option');
+      el.value = option;
+      el.textContent = option;
+      if (option === current) el.selected = true;
+      select.appendChild(el);
+    }
+  }
+
+  async function applyChange(item) {
+    if (!client) {
+      onToast?.('Not connected to Home Assistant', 'error');
+      return;
+    }
+
     const entityId = item.dataset.entity;
     const type = item.dataset.type;
     const input = item.querySelector('[data-input]');
@@ -207,8 +229,7 @@ const ParameterControls = (function () {
     if (type === 'select') {
       const options = state.attributes?.options || [];
       if (input) {
-        const current = String(raw);
-        input.innerHTML = options.map((o) => `<option value="${o}"${o === current ? ' selected' : ''}>${o}</option>`).join('');
+        setSelectOptions(input, options, String(raw));
         input.disabled = options.length === 0;
       }
       if (applyBtn) applyBtn.disabled = false;
@@ -222,5 +243,5 @@ const ParameterControls = (function () {
     }
   }
 
-  return { render, updateFromState, updateAll };
+  return { render, attach, updateFromState, updateAll };
 })();

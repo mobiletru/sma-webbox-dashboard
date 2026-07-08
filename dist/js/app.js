@@ -2,14 +2,15 @@
  * SMA Webbox Dashboard — main application
  */
 (function () {
-  const BAD_STATES = new Set(['unknown', 'unavailable', 'none', '']);
-
   let client = null;
   let history = [];
   const MAX_HISTORY = 120;
+  let flowDirty = false;
+  let historyDirty = false;
+  let flowTimer = null;
+  let historyTimer = null;
 
   const $ = (sel) => document.querySelector(sel);
-  const $$ = (sel) => document.querySelectorAll(sel);
 
   function init() {
     document.title = DASHBOARD_CONFIG.title;
@@ -20,14 +21,8 @@
     bindAuth();
     bindSettings();
     renderMetricPlaceholders();
-    renderParameterControls();
+    ParameterControls.render($('#controls-container'));
     tryConnect();
-  }
-
-  function renderParameterControls() {
-    const container = $('#controls-container');
-    if (!container) return;
-    ParameterControls.render(container, null, showToast);
   }
 
   function showToast(message, type = 'info') {
@@ -86,23 +81,21 @@
       token,
       onConnect: async () => {
         setConnectionStatus('connected');
-        const entityIds = getAllEntityIds();
+        ParameterControls.attach(client, showToast);
         try {
-          await client.subscribeEntities(entityIds);
+          await client.subscribeEntities(getAllEntityIds());
           updateAllFromStates();
-          ParameterControls.render($('#controls-container'), client, showToast);
+          logUnavailableEntities();
         } catch (err) {
           setConnectionStatus('error', err.message);
         }
       },
       onDisconnect: () => setConnectionStatus('disconnected'),
       onStateChange: (entityId, state) => {
-        updateEntity(entityId, state);
-        ParameterControls.updateFromState(entityId, state);
-        recordHistory();
+        handleStateChange(entityId, state);
       },
       onError: (msg) => {
-        if (msg.includes('token')) {
+        if (msg.toLowerCase().includes('token')) {
           clearToken();
           showAuth();
         }
@@ -112,6 +105,16 @@
 
     setConnectionStatus('connecting');
     client.connect();
+  }
+
+  function logUnavailableEntities() {
+    const missing = getAllEntityIds().filter((id) => {
+      const state = client.getState(id);
+      return !state || BAD_STATES.has(String(state.state).toLowerCase());
+    });
+    if (missing.length) {
+      console.info('[SMA Webbox] Unavailable entities:', missing);
+    }
   }
 
   function showAuth() {
@@ -136,48 +139,59 @@
     el.textContent = labels[status] || status;
   }
 
-  function updateAllFromStates() {
-    const states = client.getStates();
-    for (const state of Object.values(states)) {
-      updateEntity(state.entity_id, state);
-    }
-    ParameterControls.updateAll(states);
-    recordHistory();
+  function handleStateChange(entityId, state) {
+    const meta = ENTITY_INDEX.byEntity.get(entityId);
+    if (!meta) return;
+
+    if (meta.kind === 'metric') updateMetric(meta, state);
+    else ParameterControls.updateFromState(entityId, state);
+
+    if (meta.flow) scheduleFlowUpdate();
+    if (meta.key === 'soc' || meta.key === 'plantPower') scheduleHistoryUpdate();
   }
 
-  function updateEntity(entityId, state) {
-    const key = Object.entries(DASHBOARD_CONFIG.entities).find(([, id]) => id === entityId)?.[0];
-    if (!key) return;
+  function updateAllFromStates() {
+    for (const state of Object.values(client.getStates())) {
+      handleStateChange(state.entity_id, state);
+    }
+    flushFlowUpdate();
+    flushHistoryUpdate();
+  }
 
-    const value = formatValue(key, state);
+  function updateMetric(meta, state) {
+    const value = formatMetricValue(meta, state);
     const unit = state.attributes?.unit_of_measurement || '';
 
-    const valueEl = $(`[data-metric="${key}"] .metric-value`);
-    const unitEl = $(`[data-metric="${key}"] .metric-unit`);
+    const valueEl = $(`[data-metric="${meta.key}"] .metric-value`);
+    const unitEl = $(`[data-metric="${meta.key}"] .metric-unit`);
     if (valueEl) valueEl.textContent = value;
     if (unitEl) unitEl.textContent = unit;
 
-    if (key === 'soc') updateSocGauge(state.state);
-    if (key === 'deviceStatus' || key === 'plantStatus') updateStatusBadge(key, state.state);
-    if (['siPower', 'plantPower', 'batteryCharge', 'gridPower', 'gridFeedIn', 'solarProduction', 'consumption', 'netConsumption'].includes(key)) {
-      updateFlowDiagram();
-    }
+    if (meta.key === 'soc') updateSocGauge(state.state);
+    if (meta.status) updateStatusBadge(meta.key, state.state);
   }
 
-  function formatValue(key, state) {
+  function formatMetricValue(meta, state) {
     const raw = state.state;
     if (BAD_STATES.has(String(raw).toLowerCase())) return '—';
-
-    if (['deviceStatus', 'plantStatus'].includes(key)) return raw;
+    if (meta.format === 'text') return raw;
 
     const num = parseFloat(raw);
     if (isNaN(num)) return raw;
 
-    if (key === 'soc') return num.toFixed(1);
-    if (key.includes('Today') || key === 'energyToday') return num.toFixed(1);
-    if (Math.abs(num) >= 1000) return (num / 1000).toFixed(2);
-    if (Number.isInteger(num)) return String(num);
-    return num.toFixed(Math.abs(num) < 10 ? 2 : 1);
+    switch (meta.format) {
+      case 'percent':
+        return num.toFixed(1);
+      case 'energy':
+        return num.toFixed(1);
+      case 'power':
+      case 'number':
+        if (Math.abs(num) >= 1000) return (num / 1000).toFixed(2);
+        if (Number.isInteger(num)) return String(num);
+        return num.toFixed(Math.abs(num) < 10 ? 2 : 1);
+      default:
+        return String(raw);
+    }
   }
 
   function updateSocGauge(socRaw) {
@@ -194,8 +208,7 @@
     }
 
     const circumference = 283;
-    const offset = circumference - (soc / 100) * circumference;
-    arc.style.strokeDashoffset = String(offset);
+    arc.style.strokeDashoffset = String(circumference - (soc / 100) * circumference);
     label.textContent = `${soc.toFixed(1)}%`;
 
     if (soc >= 80) status.textContent = 'Well charged';
@@ -221,14 +234,38 @@
   }
 
   function getPowerW(key) {
-    const entityId = DASHBOARD_CONFIG.entities[key];
-    const state = client?.getStates()[entityId];
+    const meta = METRICS[key];
+    if (!meta) return 0;
+    const state = client?.getState(meta.entity);
     if (!state || BAD_STATES.has(String(state.state).toLowerCase())) return 0;
     let val = parseFloat(state.state);
     if (isNaN(val)) return 0;
-    const unit = state.attributes?.unit_of_measurement || '';
-    if (unit === 'kW') val *= 1000;
+    if (state.attributes?.unit_of_measurement === 'kW') val *= 1000;
     return val;
+  }
+
+  function scheduleFlowUpdate() {
+    flowDirty = true;
+    clearTimeout(flowTimer);
+    flowTimer = setTimeout(flushFlowUpdate, 150);
+  }
+
+  function flushFlowUpdate() {
+    if (!flowDirty) return;
+    flowDirty = false;
+    updateFlowDiagram();
+  }
+
+  function scheduleHistoryUpdate() {
+    historyDirty = true;
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(flushHistoryUpdate, 1000);
+  }
+
+  function flushHistoryUpdate() {
+    if (!historyDirty) return;
+    historyDirty = false;
+    recordHistory();
   }
 
   function updateFlowDiagram() {
@@ -273,7 +310,7 @@
   function recordHistory() {
     const point = {
       t: Date.now(),
-      soc: parseFloat(client?.getStates()[DASHBOARD_CONFIG.entities.soc]?.state) || null,
+      soc: parseFloat(client?.getState(METRICS.soc.entity)?.state) || null,
       plant: getPowerW('plantPower'),
       solar: getPowerW('solarProduction'),
     };
@@ -318,14 +355,7 @@
 
   function renderMetricPlaceholders() {
     const grid = $('#metrics-grid');
-    const groups = [
-      { title: 'Battery', keys: ['siPower', 'batteryCharge', 'dcVoltage', 'dcCurrent', 'batteryTemp'] },
-      { title: 'Grid', keys: ['gridPower', 'gridFeedIn'] },
-      { title: 'Plant', keys: ['plantPower', 'energyToday', 'plantStatus'] },
-      { title: 'Solar (Envoy)', keys: ['solarProduction', 'solarProductionToday', 'consumption', 'consumptionToday', 'netConsumption'] },
-    ];
-
-    grid.innerHTML = groups
+    grid.innerHTML = DASHBOARD_CONFIG.metricGroups
       .map(
         (g) => `
       <section class="metric-group">
@@ -335,7 +365,7 @@
             .map(
               (key) => `
             <div class="metric-card" data-metric="${key}">
-              <span class="metric-label">${DASHBOARD_CONFIG.labels[key]}</span>
+              <span class="metric-label">${getMetricLabel(key)}</span>
               <span class="metric-value-wrap">
                 <span class="metric-value">—</span>
                 <span class="metric-unit"></span>

@@ -15,7 +15,7 @@ class HAClient {
     this.states = new Map();
     this.reconnectTimer = null;
     this.intentionalClose = false;
-    this.entityFilter = null;
+    this.subscribeId = null;
   }
 
   connect() {
@@ -50,19 +50,7 @@ class HAClient {
   }
 
   async subscribeEntities(entityIds) {
-    this.entityFilter = new Set(entityIds);
-
-    // Initial snapshot
-    const allStates = await this._call('get_states');
-    for (const state of allStates) {
-      if (this.entityFilter.has(state.entity_id)) {
-        this.states.set(state.entity_id, state);
-        this.onStateChange?.(state.entity_id, state);
-      }
-    }
-
-    // Live updates
-    await this._call('subscribe_events', { event_type: 'state_changed' });
+    this.subscribeId = await this._call('subscribe_entities', { entity_ids: entityIds }, true);
   }
 
   getStates() {
@@ -80,6 +68,34 @@ class HAClient {
       service_data: serviceData,
       target,
     });
+  }
+
+  _mergeState(entityId, patch) {
+    const existing = this.states.get(entityId) || { entity_id: entityId, attributes: {} };
+    const merged = {
+      ...existing,
+      ...patch,
+      attributes: { ...existing.attributes, ...(patch.attributes || {}) },
+    };
+    this.states.set(entityId, merged);
+    this.onStateChange?.(entityId, merged);
+  }
+
+  _handleSubscribeEntitiesEvent(event) {
+    if (event.a) {
+      for (const [id, state] of Object.entries(event.a)) {
+        this.states.set(id, state);
+        this.onStateChange?.(id, state);
+      }
+    }
+    if (event.c) {
+      for (const [id, changes] of Object.entries(event.c)) {
+        this._mergeState(id, changes);
+      }
+    }
+    if (event.r) {
+      for (const id of event.r) this.states.delete(id);
+    }
   }
 
   _handleMessage(msg) {
@@ -104,10 +120,14 @@ class HAClient {
       return;
     }
 
+    if (msg.type === 'event' && msg.id === this.subscribeId && msg.event) {
+      this._handleSubscribeEntitiesEvent(msg.event);
+      return;
+    }
+
     if (msg.type === 'event' && msg.event?.event_type === 'state_changed') {
       const { entity_id, new_state } = msg.event.data;
       if (!new_state) return;
-      if (this.entityFilter && !this.entityFilter.has(entity_id)) return;
       this.states.set(entity_id, new_state);
       this.onStateChange?.(entity_id, new_state);
     }
@@ -117,10 +137,13 @@ class HAClient {
     this.ws?.send(JSON.stringify(msg));
   }
 
-  _call(type, payload = {}) {
+  _call(type, payload = {}, returnId = false) {
     return new Promise((resolve, reject) => {
       const id = this.msgId++;
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, {
+        resolve: (result) => resolve(returnId ? id : result),
+        reject,
+      });
       this._send({ id, type, ...payload });
     });
   }
@@ -142,4 +165,15 @@ function storeToken(token) {
 
 function clearToken() {
   localStorage.removeItem('sma_webbox_ha_token');
+}
+
+function getDashboardBasePath() {
+  const scripts = document.getElementsByTagName('script');
+  for (const script of scripts) {
+    const src = script.getAttribute('src') || '';
+    if (src.includes('/js/')) {
+      return src.replace(/\/js\/[^/]+$/, '');
+    }
+  }
+  return '/local/community/sma-webbox-dashboard';
 }

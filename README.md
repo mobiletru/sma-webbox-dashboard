@@ -103,7 +103,7 @@ Each writable parameter has a slider, numeric input, and **Apply** button.
 Pure static HTML/CSS/JS in `dist/` — no build step required.
 
 ```bash
-# Deploy to local HA www folder
+# Edit dashboard files in dist/, then deploy to local HA www folder
 ./scripts/deploy.sh
 
 # Push to GitHub
