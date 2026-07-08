@@ -1,0 +1,8 @@
+{
+  "name": "SMA Webbox Dashboard",
+  "filename": "sma-webbox-dashboard.js",
+  "content_in_root": false,
+  "country": "US",
+  "homeassistant": "2023.0.0",
+  "render_readme": true
+}

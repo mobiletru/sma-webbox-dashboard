@@ -2,13 +2,13 @@
 set -e
 
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
-DEST="${1:-/config/www/sma-webbox-dashboard}"
+DEST="${1:-/config/www/community/sma-webbox-dashboard}"
 
 echo "Deploying SMA Webbox Dashboard"
-echo "  from: $SRC"
+echo "  from: $SRC/dist"
 echo "  to:   $DEST"
 
 mkdir -p "$DEST"
-cp -r "$SRC/index.html" "$SRC/css" "$SRC/js" "$DEST/"
+cp -r "$SRC/dist/." "$DEST/"
 
-echo "Done. Open: http://<ha-host>:8123/local/sma-webbox-dashboard/index.html"
+echo "Done. Open: http://<ha-host>:8123/local/community/sma-webbox-dashboard/index.html"
