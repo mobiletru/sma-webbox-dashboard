@@ -1,71 +1,43 @@
 /**
  * SMA Webbox Dashboard — canonical entity registry
+ *
+ * Backed by the `tesla_evtv_bms` HA integration (EVTV CAN-DUE v2 BMS +
+ * optional SMA Sunny WebBox polling). Set PACK_NAME to your pack's device
+ * name from that integration's setup, lowercased with spaces -> underscores
+ * (e.g. pack name "Pack1" -> PACK_NAME = 'pack1'). It must match the
+ * entity_id prefix Home Assistant generated for your config entry.
  */
+const PACK_NAME = 'evtv_name';
+
 const BAD_STATES = new Set(['unknown', 'unavailable', 'none', '']);
 
 const DASHBOARD_CONFIG = {
   title: 'SMA Webbox Dashboard',
-  subtitle: 'Sunny Island SI6048UM · WebBox MQTT',
+  subtitle: 'EVTV Tesla BMS · Sunny WebBox',
 
   metricGroups: [
-    { title: 'Battery', keys: ['siPower', 'batteryCharge', 'dcVoltage', 'dcCurrent', 'batteryTemp'] },
-    { title: 'Grid', keys: ['gridPower', 'gridFeedIn'] },
-    { title: 'Plant', keys: ['plantPower', 'energyToday', 'plantStatus'] },
+    { title: 'Battery', keys: ['siPower', 'dcVoltage', 'dcCurrent', 'batteryTemp'] },
+    { title: 'Solar (WebBox)', keys: ['plantPower', 'energyToday', 'totalYield'] },
     { title: 'Solar (Envoy)', keys: ['solarProduction', 'solarProductionToday', 'consumption', 'consumptionToday', 'netConsumption'] },
   ],
 
-  parameters: [
-    {
-      title: 'Battery Charging',
-      items: [
-        { key: 'batChrgCurMax', entity: 'number.si6048um_1260044036_si6048um_1260044036_batchrgcurmax', label: 'Charge Current Max', type: 'number' },
-        { key: 'invChrgCurMax', entity: 'number.si6048um_1260044036_si6048um_1260044036_invchrgcurmax', label: 'Inverter Charge Current Max', type: 'number' },
-        { key: 'chrgVtgFlo', entity: 'number.si6048um_1260044036_si6048um_1260044036_chrgvtgflo', label: 'Float Charge Voltage', type: 'number' },
-        { key: 'aptTmFul', entity: 'number.si6048um_1260044036_si6048um_1260044036_apttmful', label: 'Absorption Time Full', type: 'number' },
-        { key: 'batPro1Soc', entity: 'number.si6048um_1260044036_si6048um_1260044036_batpro1soc', label: 'Battery Protection SOC 1', type: 'number' },
-        { key: 'slfCsmpSocMin', entity: 'number.si6048um_1260044036_si6048um_1260044036_slfcsmpsocmin', label: 'Self-Consumption SOC Min', type: 'number' },
-      ],
-    },
-    {
-      title: 'Grid & Feed-in',
-      items: [
-        { key: 'fedInCurAt', entity: 'number.si6048um_1260044036_si6048um_1260044036_fedincurat', label: 'Feed-in Current (Absolute)', type: 'number' },
-        { key: 'fedInCurRt', entity: 'number.si6048um_1260044036_si6048um_1260044036_fedincurrt', label: 'Feed-in Current (Relative)', type: 'number' },
-        { key: 'gdCurNom', entity: 'number.si6048um_1260044036_si6048um_1260044036_gdcurnom', label: 'Grid Current Nominal', type: 'number' },
-        { key: 'gdManStr', entity: 'select.si6048um_1260044036_si6048um_1260044036_manual_grid_start', label: 'Manual Grid Start', type: 'select' },
-      ],
-    },
-    {
-      title: 'Power Limits',
-      items: [
-        { key: 'pLimit', entity: 'number.si6048um_1260044036_si6048um_1260044036_plimit', label: 'Power Limit', type: 'number' },
-        { key: 'chpPwrStr', entity: 'number.si6048um_1260044036_si6048um_1260044036_chppwrstr', label: 'Charge Power Start', type: 'number' },
-      ],
-    },
-    {
-      title: 'Monitoring',
-      readOnly: true,
-      items: [
-        { key: 'extCur', entity: 'sensor.si6048um_1260044036_si6048um_1260044036_ext_cur', label: 'External Current', type: 'readonly' },
-        { key: 'totExtCur', entity: 'sensor.si6048um_1260044036_si6048um_1260044036_tot_ext_cur', label: 'Total External Current', type: 'readonly' },
-      ],
-    },
-  ],
+  // No writable parameter controls: those required the WebBox's RPC interface
+  // (GetParameterChannels/GetParameter against a specific Sunny Island device
+  // key), which is disabled by default and unconfirmed on this hardware. Wire
+  // this back up once RPC is enabled on the box and tesla_evtv_bms exposes
+  // number/select entities for it — see webbox.py's RPC notes.
+  parameters: [],
 };
 
 const METRICS = {
-  soc: { entity: 'sensor.sunny_island_si_soc_webbox', label: 'State of Charge', format: 'percent' },
-  siPower: { entity: 'sensor.sunny_island_si_power_webbox', label: 'Inverter Power', format: 'power', flow: true },
-  plantPower: { entity: 'sensor.sunny_island_webbox_plant_power', label: 'Plant Power', format: 'power', flow: true },
-  batteryCharge: { entity: 'sensor.sunny_island_si_battery_charge_webbox', label: 'Battery Charge', format: 'power', flow: true },
-  dcVoltage: { entity: 'sensor.sunny_island_si_dc_voltage_webbox', label: 'DC Voltage', format: 'number' },
-  dcCurrent: { entity: 'sensor.sunny_island_si_dc_current_webbox', label: 'DC Current', format: 'number' },
-  batteryTemp: { entity: 'sensor.sunny_island_si_battery_temp_webbox', label: 'Battery Temp', format: 'number' },
-  gridPower: { entity: 'sensor.sunny_island_si_grid_power_webbox', label: 'Grid Power', format: 'power', flow: true },
-  gridFeedIn: { entity: 'sensor.sunny_island_si_grid_feed_in_webbox', label: 'Grid Feed-in', format: 'power', flow: true },
-  energyToday: { entity: 'sensor.sunny_island_webbox_energy_today', label: 'Energy Today', format: 'energy' },
-  deviceStatus: { entity: 'sensor.sunny_island_webbox_device_status', label: 'Device Status', format: 'text', status: true },
-  plantStatus: { entity: 'sensor.sunny_island_webbox_plant_status', label: 'Plant Status', format: 'text', status: true },
+  soc: { entity: `sensor.${PACK_NAME}_state_of_charge`, label: 'State of Charge', format: 'percent' },
+  siPower: { entity: `sensor.${PACK_NAME}_power`, label: 'Pack Power', format: 'power', flow: true },
+  plantPower: { entity: `sensor.${PACK_NAME}_webbox_power`, label: 'Solar Power', format: 'power', flow: true },
+  dcVoltage: { entity: `sensor.${PACK_NAME}_volts`, label: 'Pack Voltage', format: 'number' },
+  dcCurrent: { entity: `sensor.${PACK_NAME}_current`, label: 'Pack Current', format: 'number' },
+  batteryTemp: { entity: `sensor.${PACK_NAME}_highest_temp`, label: 'Battery Temp (High)', format: 'number' },
+  energyToday: { entity: `sensor.${PACK_NAME}_webbox_daily_yield`, label: 'Solar Today', format: 'energy' },
+  totalYield: { entity: `sensor.${PACK_NAME}_webbox_total_yield`, label: 'Solar Lifetime', format: 'energy' },
   solarProduction: { entity: 'sensor.envoy_122039004946_current_power_production', label: 'Solar Production', format: 'power', flow: true, forceKw: true },
   solarProductionToday: { entity: 'sensor.envoy_122039004946_energy_production_today', label: 'Solar Today', format: 'energy' },
   consumption: { entity: 'sensor.envoy_122039004946_current_power_consumption', label: 'Consumption', format: 'power', flow: true, forceKw: true },

@@ -4,9 +4,11 @@
 [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mobiletru&repository=sma-webbox-dashboard&category=plugin)
 [![Open Dashboard](https://my.home-assistant.io/badges/local_url.svg)](https://my.home-assistant.io/redirect/local/community/sma-webbox-dashboard/index.html)
 
-A standalone web dashboard for monitoring and controlling **SMA Sunny Island SI6048UM** inverter data via Home Assistant WebBox MQTT sensors.
+A standalone web dashboard for monitoring **EVTV Tesla BMS + SMA Sunny WebBox** data from the [`tesla_evtv_bms`](https://github.com/mobiletru/tesla_evtv_bms) Home Assistant integration.
 
-Live metrics include state of charge, DC voltage/current, battery temperature, grid power, plant power, energy today, and Enphase solar context — all updated in real time over the Home Assistant WebSocket API.
+Live metrics include pack state of charge, voltage, current, temperature, WebBox solar power/yield, and Enphase solar context (if configured separately) — all updated in real time over the Home Assistant WebSocket API.
+
+**Configure first:** edit `PACK_NAME` at the top of `dist/js/config.js` (or `js/config.js` after install) to match your `tesla_evtv_bms` pack's device slug — see that repo's README for the exact value.
 
 ## Install with HACS
 
@@ -48,34 +50,36 @@ This renders a link to the full dashboard.
 
 ## Configuration
 
-Edit `dist/js/config.js` (or `www/community/sma-webbox-dashboard/js/config.js` after install) to change entity IDs.
+Edit `dist/js/config.js` (or `www/community/sma-webbox-dashboard/js/config.js` after install): set `PACK_NAME` once at the top, entity IDs are built from it.
 
-| Metric | Entity ID |
-|--------|-----------|
-| State of Charge | `sensor.sunny_island_si_soc_webbox` |
-| Inverter Power | `sensor.sunny_island_si_power_webbox` |
-| Plant Power | `sensor.sunny_island_webbox_plant_power` |
-| DC Voltage | `sensor.sunny_island_si_dc_voltage_webbox` |
-| DC Current | `sensor.sunny_island_si_dc_current_webbox` |
-| Battery Temp | `sensor.sunny_island_si_battery_temp_webbox` |
-| Grid Power | `sensor.sunny_island_si_grid_power_webbox` |
-| Grid Feed-in | `sensor.sunny_island_si_grid_feed_in_webbox` |
-| Energy Today | `sensor.sunny_island_webbox_energy_today` |
-| Device Status | `sensor.sunny_island_webbox_device_status` |
+| Metric | Entity ID | Source |
+|--------|-----------|--------|
+| State of Charge | `sensor.<pack>_state_of_charge` | tesla_evtv_bms (CAN 0x650) |
+| Pack Power | `sensor.<pack>_power` | tesla_evtv_bms (CAN 0x150/0x151) |
+| Pack Voltage | `sensor.<pack>_volts` | tesla_evtv_bms |
+| Pack Current | `sensor.<pack>_current` | tesla_evtv_bms |
+| Battery Temp (High) | `sensor.<pack>_highest_temp` | tesla_evtv_bms |
+| Solar Power | `sensor.<pack>_webbox_power` | tesla_evtv_bms (WebBox `home.ajax`) |
+| Solar Today | `sensor.<pack>_webbox_daily_yield` | tesla_evtv_bms (WebBox) |
+| Solar Lifetime | `sensor.<pack>_webbox_total_yield` | tesla_evtv_bms (WebBox) |
+| Solar Production (Envoy) | `sensor.envoy_..._current_power_production` | separate Enphase Envoy integration, if installed |
+
+Grid power/feed-in, plant/device status, and a separate "battery charge" figure
+were dropped from this dashboard — the WebBox only exposes power + daily/total
+yield over `home.ajax` (its unauthenticated interface); nothing on this hardware
+currently supplies those other fields (see below).
 
 ## Parameter controls
 
-Writable SI6048UM settings via WebBox `number` and `select` entities:
-
-- Battery charge current limits, float voltage, protection SOC
-- Grid feed-in current limits
-- Power limits and charge power start
-- Manual grid start (select)
-- External current monitoring (read-only)
-
-Each writable parameter has a slider, numeric input, and **Apply** button.
-
-**Note:** Parameter entities require the WebBox integration to be active. If controls show "Unavailable", re-add the WebBox device integration.
+Not currently wired up. Writable Sunny Island settings (charge current limits,
+float voltage, feed-in limits, etc.) require the WebBox's RPC interface
+(`GetParameterChannels`/`GetParameter` against a specific device key), which is
+**disabled by default** in the WebBox's security settings and unconfirmed on
+this hardware — `tesla_evtv_bms`'s `webbox.py` attempts RPC best-effort for
+extra read-only fields but doesn't fabricate write controls it can't verify
+work. Enable RPC on the WebBox, extend `tesla_evtv_bms` with the matching
+`number`/`select` entities, then repopulate `DASHBOARD_CONFIG.parameters` in
+`config.js`.
 
 ## Features
 
