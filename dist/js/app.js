@@ -272,7 +272,7 @@
     const solar = getPowerW('solarProduction');
     const consumption = getPowerW('consumption');
     const battery = getPowerW('siPower');
-    const grid = getPowerW('gridPower');
+    const grid = getPowerW('netConsumption');
     const plant = getPowerW('plantPower');
 
     setFlowValue('flow-solar', solar, 'W');
